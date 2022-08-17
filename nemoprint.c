@@ -290,6 +290,19 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 	case ND_EXPR_STMT:
 		fprintf(fp, "EXPR\n");
 		break;
+	case ND_STMT_EXPR:
+		fprintf(fp, "STMT ");
+		if(node->Body != NULL)
+		{
+			fprintf(fp, "Body:\n");
+			for (Node *N = node->Body; N; N = N->Next)
+				nemoPrintTree(fp, N, 1, level+1);
+		}
+		else
+		{
+			fprintf(fp, "\n");
+		}
+		break;
 	case ND_VAR:
 		fprintf(fp, "%s\n", node->Var->Name);
 		break;

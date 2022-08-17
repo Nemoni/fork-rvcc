@@ -15,7 +15,7 @@ int main(int Argc, char **Argv) {
 
   nemoPrintStr(Argv[1]);
   // 解析Argv[1]，生成终结符流
-  Token *Tok = tokenize(Argv[1]);
+  Token *Tok = tokenizeFile(Argv[1]);
   nemoPrintToken(Tok);
 
   // 解析终结符流
