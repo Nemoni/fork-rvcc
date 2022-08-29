@@ -154,6 +154,9 @@ char *getTypeString(TypeKind kind)
 {
 	switch (kind)
 	{
+	case TY_VOID:
+		return "tVod";
+		break;
 	case TY_CHAR:
 		return "tChr";
 		break;
@@ -396,6 +399,7 @@ void nemoPrintAST(Obj *globalVars)
 			if(gvar->Ty->Kind == TY_ARRAY) // 打印数组及其基础类型
 			{
 				fprintf(fp, "  array arrylen: %d, size: %d\n", gvar->Ty->ArrayLen, gvar->Ty->Size);
+				count = 0;
 				for (Type * base = gvar->Ty->Base; base; base = base->Base, ++count)
 				{
 					fprintf(fp, "  base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
@@ -432,6 +436,7 @@ void nemoPrintAST(Obj *globalVars)
 				if(Var->Ty->Kind == TY_ARRAY)
 				{
 					fprintf(fp, "      array arrylen: %d, size: %d\n", Var->Ty->ArrayLen, Var->Ty->Size);
+					count = 0;
 					for (Type * base = Var->Ty->Base; base; base = base->Base, ++count)
 					{
 						fprintf(fp, "      base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
