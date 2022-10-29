@@ -1313,6 +1313,18 @@ static Node *LVarInitializer(Token **Rest, Token *Tok, Obj *Var) {
   return newBinary(ND_COMMA, LHS, RHS, Tok);
 }
 
+static uint64_t readBuf(char *Buf, int Sz) {
+  if (Sz == 1)
+    return *Buf;
+  if (Sz == 2)
+    return *(uint16_t *)Buf;
+  if (Sz == 4)
+    return *(uint32_t *)Buf;
+  if (Sz == 8)
+    return *(uint64_t *)Buf;
+  unreachable();
+}
+
 // 临时转换Buf类型对Val进行存储
 static void writeBuf(char *Buf, uint64_t Val, int Sz) {
   if (Sz == 1)
@@ -1341,9 +1353,24 @@ static Relocation *writeGVarData(Relocation *Cur, Initializer *Init, Type *Ty,
 
   // 处理结构体
   if (Ty->Kind == TY_STRUCT) {
-    for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next)
-      Cur = writeGVarData(Cur, Init->Children[Mem->Idx], Mem->Ty, Buf,
-                          Offset + Mem->Offset);
+    for (Member *mem = Ty->Mems; mem; mem = mem->Next) {
+      if (mem->IsBitfield) {
+        Node *expr = Init->Children[mem->Idx]->Expr;
+        if (!expr)
+          break;
+
+        char *Loc = Buf + Offset + mem->Offset;
+        uint64_t oldval = readBuf(Loc, mem->Ty->Size);
+        uint64_t newval = eval(expr);
+        uint64_t mask = (1L << mem->BitWidth) - 1;
+        uint64_t combined = oldval | ((newval & mask) << mem->BitOffset);
+        writeBuf(Loc, combined, mem->Ty->Size);
+      } else {
+        Cur = writeGVarData(Cur, Init->Children[mem->Idx], mem->Ty, Buf,
+                              Offset + mem->Offset);
+      }
+    }
+
     return Cur;
   }
 
