@@ -229,6 +229,10 @@ static bool isFunction(Token *Tok);
 static Token *function(Token *Tok, Type *BaseTy, VarAttr *Attr);
 static Token *globalVariable(Token *Tok, Type *Basety, VarAttr *Attr);
 
+static int alignDown(int N, int Align) {
+  return alignTo(N - Align + 1, Align);
+}
+
 // 进入域
 static void enterScope(void) {
   Scope *S = calloc(1, sizeof(Scope));
@@ -2438,6 +2442,12 @@ static void structMembers(Token **Rest, Token *Tok, Type *Ty) {
       Mem->Idx = Idx++;
       // 设置对齐值
       Mem->Align = Attr.Align ? Attr.Align : Mem->Ty->Align;
+
+      if (consume(&Tok, Tok, ":")) {
+        Mem->IsBitfield = true;
+        Mem->BitWidth = constExpr(&Tok, Tok);
+      }
+
       Cur = Cur->Next = Mem;
     }
   }
@@ -2508,16 +2518,27 @@ static Type *structDecl(Token **Rest, Token *Tok) {
     return Ty;
 
   // 计算结构体内成员的偏移量
-  int Offset = 0;
+  int bits = 0;
+
   for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
-    Offset = alignTo(Offset, Mem->Align);
-    Mem->Offset = Offset;
-    Offset += Mem->Ty->Size;
+    if (Mem->IsBitfield) {
+      int Sz = Mem->Ty->Size;
+      if (bits / (Sz * 8) != (bits + Mem->BitWidth - 1) / (Sz * 8))
+        bits = alignTo(bits, Sz * 8);
+
+      Mem->Offset = alignDown(bits / 8, Sz);
+      Mem->BitOffset = bits % (Sz * 8);
+      bits += Mem->BitWidth;
+    } else {
+      bits = alignTo(bits, Mem->Align * 8);
+      Mem->Offset = bits / 8;
+      bits += Mem->Ty->Size * 8;
+    }
 
     if (Ty->Align < Mem->Align)
       Ty->Align = Mem->Align;
   }
-  Ty->Size = alignTo(Offset, Ty->Align);
+  Ty->Size = alignTo(bits, Ty->Align * 8) / 8;
 
   return Ty;
 }

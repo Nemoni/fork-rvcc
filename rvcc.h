@@ -333,6 +333,11 @@ struct Member {
   int Idx;      // 索引值
   int Align;    // 对齐量
   int Offset;   // 偏移量
+
+  // 位域
+  bool IsBitfield;
+  int BitOffset;
+  int BitWidth;
 };
 
 // 声明全局变量，定义在type.c中。

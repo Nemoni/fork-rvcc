@@ -916,11 +916,24 @@ static void genExpr(Node *Nd) {
     }
   // 变量
   case ND_VAR:
-  case ND_MEMBER:
     // 计算出变量的地址，然后存入a0
     genAddr(Nd);
     load(Nd->Ty);
     return;
+  case ND_MEMBER: {
+    genAddr(Nd);
+    load(Nd->Ty);
+
+    Member *Mem = Nd->Mem;
+    if (Mem->IsBitfield) {
+      printLn("  slli a0, a0, %d", 64 - Mem->BitWidth - Mem->BitOffset);
+      if (Mem->Ty->IsUnsigned)
+        printLn("  srli a0, a0, %d", 64 - Mem->BitWidth);
+      else
+        printLn("  srai a0, a0, %d", 64 - Mem->BitWidth);
+    }
+    return;
+  }
   // 解引用
   case ND_DEREF:
     genExpr(Nd->LHS);
@@ -937,6 +950,32 @@ static void genExpr(Node *Nd) {
     push();
     // 右部是右值，为表达式的值
     genExpr(Nd->RHS);
+
+    if (Nd->LHS->Kind == ND_MEMBER && Nd->LHS->Mem->IsBitfield) {
+      // If the lhs is a bitfield, we need to read the current value
+      // from memory and merge it with a new value.
+      Member *Mem = Nd->LHS->Mem;
+      // printLn("  mov %%rax, %%rdi");
+      printLn("  mv t0, a0");
+      // printLn("  and $%ld, %%rdi", (1L << Mem->BitWidth) - 1);
+      printLn("  andi t0, t0, %ld",(1L << Mem->BitWidth) - 1);
+      // printLn("  shl $%d, %%rdi", Mem->BitOffset);
+      printLn("  slli t0, t0, %d", Mem->BitOffset);
+
+      // printLn("  mov (%%rsp), %%rax");
+      printLn("  ld a0, 0(sp)");
+
+      load(Mem->Ty);
+
+      long Mask = ((1L << Mem->BitWidth) - 1) << Mem->BitOffset;
+      // printLn("  mov $%ld, %%r9", ~Mask);
+      printLn("  li t1, %ld", ~Mask);
+      // printLn("  and %%r9, %%rax");
+      printLn("  and a0, a0, t1");
+      // println("  or %%rdi, %%rax");
+      printLn("  or a0, a0, t0");
+    }
+
     store(Nd->Ty);
     return;
   // 语句表达式
