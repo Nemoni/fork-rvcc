@@ -952,6 +952,9 @@ static void genExpr(Node *Nd) {
     genExpr(Nd->RHS);
 
     if (Nd->LHS->Kind == ND_MEMBER && Nd->LHS->Mem->IsBitfield) {
+      // printLn("  mov %%rax, %%r8");
+      printLn("  mv t2, a0");
+
       // If the lhs is a bitfield, we need to read the current value
       // from memory and merge it with a new value.
       Member *Mem = Nd->LHS->Mem;
@@ -974,6 +977,11 @@ static void genExpr(Node *Nd) {
       printLn("  and a0, a0, t1");
       // println("  or %%rdi, %%rax");
       printLn("  or a0, a0, t0");
+
+      store(Nd->Ty);
+      // printLn("  mov %%r8, %%rax");
+      printLn("  mv a0, t2");
+      return;
     }
 
     store(Nd->Ty);

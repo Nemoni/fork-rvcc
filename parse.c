@@ -1989,6 +1989,12 @@ static double evalDouble(Node *Nd) {
 }
 
 // 转换 A op= B为 TMP = &A, *TMP = *TMP op B
+// Convert op= operators to expressions containing an assignment.
+//
+// In general, `A op= C` is converted to ``tmp = &A, *tmp = *tmp op B`.
+// However, if a given expression is of form `A.x op= C`, the input is
+// converted to `tmp = &A, (*tmp).x = (*tmp).x op C` to handle assignments
+// to bitfields.
 static Node *toAssign(Node *Binary) {
   // A
   addType(Binary->LHS);
@@ -1996,6 +2002,29 @@ static Node *toAssign(Node *Binary) {
   addType(Binary->RHS);
   Token *Tok = Binary->Tok;
 
+  // Convert `A.x op= C` to `tmp = &A, (*tmp).x = (*tmp).x op C`.
+  if (Binary->LHS->Kind == ND_MEMBER) {
+    Obj *Var = newLVar("", pointerTo(Binary->LHS->LHS->Ty));
+
+    Node *Expr1 = newBinary(ND_ASSIGN, newVarNode(Var, Tok),
+                             newUnary(ND_ADDR, Binary->LHS->LHS, Tok), Tok);
+
+    Node *Expr2 = newUnary(
+        ND_MEMBER, newUnary(ND_DEREF, newVarNode(Var, Tok), Tok), Tok);
+    Expr2->Mem = Binary->LHS->Mem;
+
+    Node *Expr3 = newUnary(
+        ND_MEMBER, newUnary(ND_DEREF, newVarNode(Var, Tok), Tok), Tok);
+    Expr3->Mem = Binary->LHS->Mem;
+
+    Node *Expr4 =
+        newBinary(ND_ASSIGN, Expr2,
+                   newBinary(Binary->Kind, Expr3, Binary->RHS, Tok), Tok);
+
+    return newBinary(ND_COMMA, Expr1, Expr4, Tok);
+  }
+
+  // Convert `A op= C` to ``tmp = &A, *tmp = *tmp op B`.
   // TMP
   Obj *Var = newLVar("", pointerTo(Binary->LHS->Ty));
 
