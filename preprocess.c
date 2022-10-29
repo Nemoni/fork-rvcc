@@ -874,15 +874,9 @@ static Token *preprocess2(Token *Tok) {
       // 如果匹配到的不是标识符就报错
       if (Tok->Kind != TK_IDENT)
         errorTok(Tok, "macro name must be an identifier");
-      // 复制名字
-      char *Name = strndup(Tok->Loc, Tok->Len);
+      undefMacro(strndup(Tok->Loc, Tok->Len));
       // 跳到行首
       Tok = skipLine(Tok->Next);
-
-      // 增加宏变量
-      Macro *M = addMacro(Name, true, NULL);
-      // 将宏变量设为删除状态
-      M->Deleted = true;
       continue;
     }
 
@@ -985,6 +979,11 @@ static Token *preprocess2(Token *Tok) {
 void defineMacro(char *Name, char *Buf) {
   Token *Tok = tokenize(newFile("<built-in>", 1, Buf));
   addMacro(Name, true, Tok);
+}
+
+void undefMacro(char *Name) {
+  Macro *M = addMacro(Name, true, NULL);
+  M->Deleted = true;
 }
 
 // 增加内建的宏和相应的宏处理函数
