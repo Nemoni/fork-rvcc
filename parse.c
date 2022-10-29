@@ -2574,27 +2574,31 @@ static Type *structDecl(Token **Rest, Token *Tok) {
     return Ty;
 
   // 计算结构体内成员的偏移量
-  int bits = 0;
+  int Bits = 0;
 
   for (Member *Mem = Ty->Mems; Mem; Mem = Mem->Next) {
-    if (Mem->IsBitfield) {
+    if (Mem->IsBitfield && Mem->BitWidth == 0) {
+      // Zero-width anonymous bitfield has a special meaning.
+      // It affects only alignment.
+      Bits = alignTo(Bits, Mem->Ty->Size * 8);
+    } else if (Mem->IsBitfield) {
       int Sz = Mem->Ty->Size;
-      if (bits / (Sz * 8) != (bits + Mem->BitWidth - 1) / (Sz * 8))
-        bits = alignTo(bits, Sz * 8);
+      if (Bits / (Sz * 8) != (Bits + Mem->BitWidth - 1) / (Sz * 8))
+        Bits = alignTo(Bits, Sz * 8);
 
-      Mem->Offset = alignDown(bits / 8, Sz);
-      Mem->BitOffset = bits % (Sz * 8);
-      bits += Mem->BitWidth;
+      Mem->Offset = alignDown(Bits / 8, Sz);
+      Mem->BitOffset = Bits % (Sz * 8);
+      Bits += Mem->BitWidth;
     } else {
-      bits = alignTo(bits, Mem->Align * 8);
-      Mem->Offset = bits / 8;
-      bits += Mem->Ty->Size * 8;
+      Bits = alignTo(Bits, Mem->Align * 8);
+      Mem->Offset = Bits / 8;
+      Bits += Mem->Ty->Size * 8;
     }
 
     if (Ty->Align < Mem->Align)
       Ty->Align = Mem->Align;
   }
-  Ty->Size = alignTo(bits, Ty->Align * 8) / 8;
+  Ty->Size = alignTo(Bits, Ty->Align * 8) / 8;
 
   return Ty;
 }
