@@ -20,3 +20,6 @@ void exit(int n);
 
 // [205] 支持va_copy()
 int vsprintf(char *buf, char *fmt, void *ap);
+
+// [221] 支持__DATE__和__TIME__宏
+long strlen(char *s);
