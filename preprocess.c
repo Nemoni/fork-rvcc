@@ -1025,6 +1025,14 @@ static Token *preprocess2(Token *Tok) {
       continue;
     }
 
+    // 匹配#pragma
+    if (equal(Tok, "pragma")) {
+      do {
+        Tok = Tok->Next;
+      } while (!Tok->AtBOL);
+      continue;
+    }
+
     // 匹配#error
     if (equal(Tok, "error"))
       errorTok(Tok, "error");
