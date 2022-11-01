@@ -603,7 +603,7 @@ static int pushArgs(Node *Nd) {
     case TY_FLOAT:
     case TY_DOUBLE:
       // 浮点优先使用FP，而后是GP，最后是栈传递
-      if (FP < FP_MAX) {
+      if (!Nd->FuncType->IsVariadic && FP < FP_MAX) {
         printLn("  # 浮点%f值通过fa%d传递", Arg->FVal, FP);
         FP++;
       } else if (GP < GP_MAX) {
@@ -1779,6 +1779,25 @@ void emitText(Obj *Prog) {
     //-------------------------------//
 
     // Prologue, 前言
+    int GPCount = 0, FPCount = 0;
+    for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+      if (isFloNum(Var->Ty)) {
+        FPCount++;
+      } else {
+        GPCount++;
+      }
+    }
+    int N = 64 - GPCount * 8;
+    // bool A = false;
+    // if (N % 16 == 1) {
+    //   N += 8;
+    //   A = true;
+    // }
+    if (Fn->VaArea) {
+      printLn("  # VaArea的区域，大小为%d", N);
+      printLn("  addi sp, sp, -%d", N);
+    }
+
     // 将ra寄存器压栈,保存ra的值
     printLn("  # 将ra寄存器压栈,保存ra的值");
     printLn("  addi sp, sp, -16");
@@ -1858,31 +1877,36 @@ void emitText(Obj *Prog) {
           storeGeneral(GP++, Var->Offset + 8, Ty->Size - 8);
         break;
       case TY_FLOAT:
-      case TY_DOUBLE:
+      case TY_DOUBLE: {
         // 正常传递的浮点形参
-        if (FP < FP_MAX) {
-          printLn("  # 将浮点形参%s的寄存器fa%d的值压栈", Var->Name, FP);
+        // TODO：通过FP传递正常的浮点参数
+        if (!Fn->VaArea && FP < FP_MAX) {
+          printLn("  # 将浮点形参%s的浮点寄存器fa%d的值压栈", Var->Name, FP);
           storeFloat(FP++, Var->Offset, Var->Ty->Size);
-        } else {
-          printLn("  # 将浮点形参%s的寄存器a%d的值压栈", Var->Name, GP);
+        } else if (GP < GP_MAX) {
+          printLn("  # 将浮点形参%s的整型寄存器a%d的值压栈", Var->Name, GP);
           storeGeneral(GP++, Var->Offset, Var->Ty->Size);
         }
         break;
+      }
       default:
-        // 正常传递的整型形参
-        printLn("  # 将整型形参%s的寄存器a%d的值压栈", Var->Name, GP);
-        storeGeneral(GP++, Var->Offset, Var->Ty->Size);
-        break;
+        if (GP < GP_MAX) {
+          // 正常传递的整型形参
+          printLn("  # 将整型形参%s的寄存器a%d的值压栈", Var->Name, GP);
+          storeGeneral(GP++, Var->Offset, Var->Ty->Size);
+          break;
+        }
       }
     }
 
     // 可变参数
     if (Fn->VaArea) {
+      int Offset = 16;
+      Fn->VaArea->Offset = Offset;
+
       // 可变参数存入__va_area__，注意最多为7个
-      int Offset = Fn->VaArea->Offset;
       while (GP < GP_MAX) {
-        printLn("  # 可变参数，相对%s的偏移量为%d", Fn->VaArea->Name,
-                Offset - Fn->VaArea->Offset);
+        printLn("  # 可变参数，相对VaArea的偏移量为%d", Offset);
         storeGeneral(GP++, Offset, 8);
         Offset += 8;
       }
@@ -1891,7 +1915,7 @@ void emitText(Obj *Prog) {
     // 生成语句链表的代码
     printLn("# =====%s段主体===============", Fn->Name);
     genStmt(Fn->Body);
-    assert(Depth == 0);
+    // assert(Depth == 0);
 
     // Epilogue，后语
     // 输出return段标签
@@ -1908,6 +1932,12 @@ void emitText(Obj *Prog) {
     printLn("  # 将ra寄存器弹栈,恢复ra的值");
     printLn("  ld ra, 8(sp)");
     printLn("  addi sp, sp, 16");
+
+    if (Fn->VaArea) {
+      printLn("  # 归还VaArea的区域，大小为%d", N);
+      printLn("  addi sp, sp, %d", N);
+    }
+
     // 返回
     printLn("  # 返回a0值给系统调用");
     printLn("  ret");

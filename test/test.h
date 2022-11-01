@@ -17,3 +17,4 @@ int sprintf(char *buf, char *fmt, ...);
 
 // [136] 忽略const volatile auto register restrict _Noreturn
 void exit(int n);
+int vsprintf(char *buf, char *fmt, void *ap);
