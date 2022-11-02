@@ -339,8 +339,8 @@ static Token *readCharLiteral(char *Start, char *Quote) {
 }
 
 // 读取数字字面量
-static Token *readIntLiteral(char *Start) {
-  char *P = Start;
+static bool convertPPInt(Token *Tok) {
+  char *P = Tok->Loc;
 
   // 读取二、八、十、十六进制
   // 默认为十进制
@@ -390,6 +390,9 @@ static Token *readIntLiteral(char *Start) {
     U = true;
   }
 
+  if (P != Tok->Loc + Tok->Len)
+    return false;
+
   // 推断出类型，采用能存下当前数值的类型
   Type *Ty;
   if (Base == 10) {
@@ -419,23 +422,27 @@ static Token *readIntLiteral(char *Start) {
   }
 
   // 构造NUM的终结符
-  Token *Tok = newToken(TK_NUM, Start, P);
+  Tok->Kind = TK_NUM;
   Tok->Val = Val;
   Tok->Ty = Ty;
-  return Tok;
+  return true;
 }
 
-// 读取数字
-static Token *readNumber(char *Start) {
-  // 尝试解析整型常量
-  Token *Tok = readIntLiteral(Start);
-  // 不带e或者f后缀，则为整型
-  if (!strchr(".eEfF", Start[Tok->Len]))
-    return Tok;
+// The definition of the numeric literal at the preprocessing stage
+// is more relaxed than the definition of that at the later stages.
+// In order to handle that, a numeric literal is tokenized as a
+// "pp-number" token first and then converted to a regular number
+// token after preprocessing.
+//
+// This function converts a pp-number token to a regular number token.
+static void convertPPNumber(Token *Tok) {
+  // Try to parse as an integer constant.
+  if (convertPPInt(Tok))
+    return;
 
   // 如果不是整型，那么一定是浮点数
   char *End;
-  double Val = strtod(Start, &End);
+  double Val = strtod(Tok->Loc, &End);
 
   // 处理浮点数后缀
   Type *Ty;
@@ -450,20 +457,23 @@ static Token *readNumber(char *Start) {
   }
 
   // 构建浮点数终结符
-  Tok = newToken(TK_NUM, Start, End);
+  if (Tok->Loc + Tok->Len != End)
+    errorTok(Tok, "invalid numeric constant");
+
+  Tok->Kind = TK_NUM;
   Tok->FVal = Val;
   Tok->Ty = Ty;
-  return Tok;
 }
 
 // 将名为“return”的终结符转为KEYWORD
-void convertKeywords(Token *Tok) {
+void convertPPTokens(Token *Tok) {
   for (Token *T = Tok; T->Kind != TK_EOF; T = T->Next) {
     if (isKeyword(T))
       T->Kind = TK_KEYWORD;
+    else if (T->Kind == TK_PP_NUM)
+      convertPPNumber(T);
   }
 }
-
 // 为所有Token添加行号
 static void addLineNumbers(Token *Tok) {
   // 读取当前文件的内容
@@ -534,10 +544,16 @@ Token *tokenize(File *FP) {
 
     // 解析整型和浮点数
     if (isdigit(*P) || (*P == '.' && isdigit(P[1]))) {
-      Cur->Next = readNumber(P);
-      // 指针前进
-      Cur = Cur->Next;
-      P += Cur->Len;
+      char *Q = P++;
+      for (;;) {
+        if (P[0] && P[1] && strchr("eEpP", P[0]) && strchr("+-", P[1]))
+          P += 2;
+        else if (isalnum(*P) || *P == '.')
+          P++;
+        else
+          break;
+      }
+      Cur = Cur->Next = newToken(TK_PP_NUM, Q, P);
       continue;
     }
 
