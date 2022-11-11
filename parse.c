@@ -1323,6 +1323,7 @@ static uint64_t readBuf(char *Buf, int Sz) {
   if (Sz == 8)
     return *(uint64_t *)Buf;
   unreachable();
+  return -1;
 }
 
 // 临时转换Buf类型对Val进行存储
