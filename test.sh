@@ -2,7 +2,7 @@
 
 # 将下列代码编译为tmp2.o，"-xc"强制以c语言进行编译
 # cat <<EOF | $RISCV/bin/riscv64-unknown-linux-gnu-gcc -xc -c -o tmp2.o -
-cat <<EOF | gcc -xc -c -o tmp2.o -
+cat <<EOF | riscv64-unknown-elf-gcc -xc -c -o tmp2.o -
 int ret3() { return 3; }
 int ret5() { return 5; }
 int add(int x, int y) { return x+y; }
@@ -23,7 +23,7 @@ assert() {
   # 如果运行不成功，则会执行exit退出。成功时会短路exit操作
   ./rvcc "$input" > tmp.s || exit
   # 编译rvcc产生的汇编文件
-  gcc -static -o tmp tmp.s tmp2.o
+  riscv64-unknown-elf-gcc -static -o tmp tmp.s tmp2.o
   # $RISCV/bin/riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s tmp2.o
 
   # 运行生成出来目标文件

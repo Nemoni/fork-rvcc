@@ -1,5 +1,7 @@
 #include "rvcc.h"
 
+extern void nemoPrintToken(Token *Tok);
+extern void nemoPrintAST(Function *funcs);
 int main(int Argc, char **Argv) {
   // 判断传入程序的参数是否为2个，Argv[0]为程序名称，Argv[1]为传入的第一个参数
   if (Argc != 2) {
@@ -12,12 +14,14 @@ int main(int Argc, char **Argv) {
 
   // 解析Argv[1]，生成终结符流
   Token *Tok = tokenize(Argv[1]);
+  nemoPrintToken(Tok);
 
   // 解析终结符流
   Function *Prog = parse(Tok);
 
   // 生成代码
   codegen(Prog);
+  nemoPrintAST(Prog);
 
   return 0;
 }
