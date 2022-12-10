@@ -1,7 +1,7 @@
 #include "rvcc.h"
 
 extern void nemoPrintToken(Token *Tok);
-extern void nemoPrintAST(Function *funcs);
+extern void nemoPrintAST(Obj *funcs);
 int main(int Argc, char **Argv) {
   // 判断传入程序的参数是否为2个，Argv[0]为程序名称，Argv[1]为传入的第一个参数
   if (Argc != 2) {

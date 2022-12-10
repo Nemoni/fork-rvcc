@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
+#include "rvcc.h"
 
 FILE * getFp()
 {
@@ -15,25 +16,6 @@ FILE * getFp()
 	return fp;
 }
 //////////////////////////////////////////打印Token/////////////////////////////////////////////
-// 为每个终结符都设置种类来表示
-typedef enum {
-  TK_IDENT, // 标记符，可以为变量名、函数名等
-  TK_PUNCT, // 操作符如： + -
-  TK_KEYWORD, // 关键字
-  TK_NUM,   // 数字
-  TK_EOF,   // 文件终止符，即文件的最后
-} TokenKind;
-
-// 终结符结构体
-typedef struct Token Token;
-struct Token {
-  TokenKind Kind; // 种类
-  Token *Next;    // 指向下一终结符
-  int Val;        // 值
-  char *Loc;      // 在解析的字符串内的位置
-  int Len;        // 长度
-};
-
 // 判断标记符的首字母规则
 // [a-zA-Z_]
 static bool isIdent1(char C) {
@@ -66,7 +48,7 @@ void nemoPrintToken(Token *Tok)
 		return;
 	}
 	fprintf(fp, "#############################################################\n");
-	fprintf(fp, "====================================================\n");
+	//fprintf(fp, "====================================================\n");
 	fprintf(fp, "Token list:\n");
 	fprintf(fp, "-------------------------------------------------\n");
 	while(Tok->Kind != TK_EOF)
@@ -112,109 +94,28 @@ void nemoPrintToken(Token *Tok)
 		}
 		Tok = Tok->Next;
 	}
-	fprintf(fp, "\n====================================================\n");
+	fprintf(fp, "\n");
+	//fprintf(fp, "\n====================================================\n");
 	fclose(fp);
 }
 
 ////////////////////////////////////////打印语法树///////////////////////////////////////////////
-typedef struct Node Node;
-typedef struct Type Type;
-
-// 本地变量
-typedef struct Obj Obj;
-struct Obj {
-  Obj *Next;  // 指向下一对象
-  char *Name; // 变量名
-  Type *Ty;   // 变量类型
-  int Offset; // fp的偏移量
-};
-
-// 函数
-typedef struct Function Function;
-struct Function {
-  Function *Next; // 下一函数
-  char *Name;     // 函数名
-  Node *Body;    // 函数体
-  Obj *Locals;   // 本地变量
-  int StackSize; // 栈大小
-};
-
-// 类型种类
-typedef enum {
-  TY_INT,  // int整型
-  TY_PTR,  // 指针
-  TY_FUNC, // 函数
-} TypeKind;
-
-struct Type {
-  TypeKind Kind; // 种类
-  Type *Base;    // 指向的类型
-  // 变量名
-  Token *Name;
-  // 函数类型
-  Type *ReturnTy; // 函数返回的类型
-};
-
-// AST的节点种类
-typedef enum {
-  ND_ADD, // +
-  ND_SUB, // -
-  ND_MUL, // *
-  ND_DIV, // /
-  ND_NEG, // 负号-
-  ND_EQ,  // ==
-  ND_NE,  // !=
-  ND_LT,  // <
-  ND_LE,  // <=
-  ND_ASSIGN,    // 赋值
-  ND_ADDR,      // 取地址 &
-  ND_DEREF,     // 解引用 *
-  ND_RETURN,    // 返回
-  ND_IF,        // "if"，条件判断
-  ND_FOR,       // "for" 或 "while"，循环
-  ND_BLOCK,     // { ... }，代码块
-  ND_FUNCALL,   // 函数调用
-  ND_EXPR_STMT, // 表达式语句
-  ND_VAR,       // 变量
-  ND_NUM, // 整形
-} NodeKind;
-
-// AST中二叉树节点
-typedef struct Node Node;
-struct Node {
-  NodeKind Kind; // 节点种类
-  Node *Next;    // 下一节点，指代下一语句
-  Token *Tok;    // 节点对应的终结符
-  Type *Ty;      // 节点中数据的类型
-  Node *LHS;     // 左部，left-hand side
-  Node *RHS;     // 右部，right-hand side
-  // "if"语句或"for"语句
-  Node *Cond; // 条件内的表达式
-  Node *Then; // 符合条件后的语句
-  Node *Els;  // 不符合条件后的语句
-  Node *Init; // 初始化语句
-  Node *Inc;  // 递增语句
-  // 代码块
-  Node *Body;
-  // 函数调用
-  char *FuncName; // 函数名
-  Node *Args;     // 函数参数
-  Obj *Var;      // 存储ND_VAR种类的变量
-  int Val;       // 存储ND_NUM种类的值
-};
-
+// 获取type的类型对应的字符串
 char *getTypeString(TypeKind kind)
 {
 	switch (kind)
 	{
 	case TY_INT:
-		return "i";
+		return "int";
 		break;
 	case TY_PTR:
-		return "p";
+		return "ptr";
 		break;
 	case TY_FUNC:
-		return "f";
+		return "func";
+		break;
+	case TY_ARRAY:
+		return "arr";
 		break;
 	default:
 		return "?";
@@ -230,6 +131,7 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 	if (NULL == node)
 		return;
 	nemoPrintTree(fp, node->RHS, 2, level+1);
+	// 打印时的缩进
 	switch (type)
 	{
 	case 0:
@@ -247,10 +149,12 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 		fprintf(fp, "/ ");
 		break;	
 	}
+	// 打印节点数据类型
 	if(node->Ty != NULL)
 	{
 		fprintf(fp, "%s ", getTypeString(node->Ty->Kind));
 	}
+	// 打印节点类型
 	switch (node->Kind)
 	{
 	case ND_ADD:
@@ -371,8 +275,9 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 	nemoPrintTree(fp, node->LHS, 1,  level+1);
 }
 
-void nemoPrintAST(Function *funcs)
+void nemoPrintAST(Obj *funcs)
 {
+	int count = 0;
 	FILE *fp = getFp();
 	if(NULL == fp)
 	{
@@ -380,26 +285,39 @@ void nemoPrintAST(Function *funcs)
 		return;
 	}
 	fprintf(fp, "====================================================\n");
-	fprintf(fp, "Variables:\n");
-	fprintf(fp, "-------------------------------------------------\n");
+	fprintf(fp, "Note:\n");
+	fprintf(fp, "  Data type: ptr(pointor), arr(array), int(int) \n");
+	//fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
 	// 打印所有变量
-	for (Function *func = funcs; func != NULL; func = func->Next)
+	for (Obj *func = funcs; func != NULL; func = func->Next)
 	{
+		fprintf(fp, "-------------------------------------------------\n");
 		fprintf(fp, "Func %s:\n", func->Name);
+		// 打印栈大小
+		fprintf(fp, "  StackSize: %d\n", funcs->StackSize);
+		fprintf(fp, "  Variables:\n");
+		// for (Obj *param = func->Params; param; param = param->Next) {
+		// 	fprintf(fp, "  param Name: %s, type: %s, Offset: %d\n", param->Name, getTypeString(param->Ty->Kind), param->Offset);
+		// }
 		for (Obj *Var = func->Locals; Var; Var = Var->Next) {
-			fprintf(fp, "  Var Name: %s, type: %s, Offset: %d\n", Var->Name, getTypeString(Var->Ty->Kind), Var->Offset);
+			fprintf(fp, "    Var Name: %s, type: %s, Offset: %d\n", Var->Name, getTypeString(Var->Ty->Kind), Var->Offset);
+			if(Var->Ty->Kind == TY_ARRAY)
+			{
+				fprintf(fp, "      array arrylen: %d, size: %d\n", Var->Ty->ArrayLen, Var->Ty->Size);
+				for (Type * base = Var->Ty->Base; base; base = base->Base, ++count)
+				{
+					fprintf(fp, "      base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
+				}
+			}
 		}
+
 	}
 	fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
-	// 打印栈大小
-	fprintf(fp, "StackSize: %d\n", funcs->StackSize);
-	fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
 	fprintf(fp, "AST tree: \n");
-	fprintf(fp, "\tNode type: F(function) \n");
-	fprintf(fp, "\tData type: p(pointor), i(int) \n");
-	// 循环遍历所有的语句
+	fprintf(fp, "  Node type: F(function) \n");
+	// 循环遍历所有的函数
 	fprintf(fp, "-------------------------------------------------\n");
-	for (Function *func = funcs; func != NULL; func = func->Next)
+	for (Obj *func = funcs; func != NULL; func = func->Next)
 	{
 		fprintf(fp, "Func %s:\n", func->Name);
 		nemoPrintTree(fp, func->Body, 0,  1);
