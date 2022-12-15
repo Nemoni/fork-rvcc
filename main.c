@@ -1,5 +1,6 @@
 #include "rvcc.h"
 
+extern void nemoPrintStr(char *str);
 extern void nemoPrintToken(Token *Tok);
 extern void nemoPrintAST(Obj *funcs);
 int main(int Argc, char **Argv) {
@@ -12,6 +13,7 @@ int main(int Argc, char **Argv) {
     error("%s: invalid number of arguments", Argv[0]);
   }
 
+  nemoPrintStr(Argv[1]);
   // 解析Argv[1]，生成终结符流
   Token *Tok = tokenize(Argv[1]);
   nemoPrintToken(Tok);

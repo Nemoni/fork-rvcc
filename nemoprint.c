@@ -15,6 +15,50 @@ FILE * getFp()
 	}
 	return fp;
 }
+char *transSlashes(char *str)
+{
+    /* allocate enough memory to escape all characters in str */
+    char *new_str = calloc(1, strlen(str) * 2 + 1);
+	//char *P = NULL;
+	//int C = 0;
+	char *ptr = new_str;
+	char output[7] = {0};
+	int i, j = 0;
+	//strncpy(ptr, "0x", 2);
+	//ptr += 2;
+	for (i = 0; i < strlen(str); i++)
+    {
+		if(str[i] >= 0x20 && str[i] <= 0x7E)
+		{
+			*ptr = str[i];
+			ptr++;
+		}
+		else
+		{
+			sprintf(output, "(0x%02x)", (unsigned char)str[i]);
+			strncpy(ptr, output, strlen(output));
+			ptr += strlen(output);
+		}
+	}
+	strncpy(ptr, "\\0", 2);
+	return new_str;
+}
+
+//////////////////////////////////////////打印/////////////////////////////////////////////
+void nemoPrintStr(char * str)
+{
+	FILE *fp = getFp();
+	if(NULL == fp)
+	{
+		printf("nemoPrintToken fp is null!\n");
+		return;
+	}
+	fprintf(fp, "##################################################################\n");
+	fprintf(fp, "Prefix:\n");
+	fprintf(fp, "  t:type kind; n:Node kind; \n");
+	fprintf(fp, "Input Code:\n  %s\n", str);
+	fclose(fp);
+}
 //////////////////////////////////////////打印Token/////////////////////////////////////////////
 // 判断标记符的首字母规则
 // [a-zA-Z_]
@@ -36,6 +80,7 @@ static bool startsWith(char *Str, char *SubStr) {
 void nemoPrintToken(Token *Tok)
 {
 	char *P = NULL;
+	char *display = NULL;
 	FILE *fp = getFp();
 	if(NULL == fp)
 	{
@@ -47,10 +92,9 @@ void nemoPrintToken(Token *Tok)
 		fprintf(fp, "Tok is null\n");
 		return;
 	}
-	fprintf(fp, "#############################################################\n");
 	//fprintf(fp, "====================================================\n");
-	fprintf(fp, "Token list:\n");
-	fprintf(fp, "-------------------------------------------------\n");
+	fprintf(fp, "Token list:\n  ");
+	//fprintf(fp, "-------------------------------------------------\n");
 	while(Tok->Kind != TK_EOF)
 	{
 		switch (Tok->Kind)
@@ -86,6 +130,11 @@ void nemoPrintToken(Token *Tok)
 				fprintf(fp, "%c ", *(char *)(Tok->Loc));
 			}
 			break;
+		case TK_STR: // 打印字符串字面量
+			display = transSlashes(Tok->Str);
+			fprintf(fp, "%s ", display);
+			free(display);
+			break;
 		case TK_NUM: // 打印运算整数
 			fprintf(fp, "%d ", Tok->Val);
 			break;
@@ -105,23 +154,25 @@ char *getTypeString(TypeKind kind)
 {
 	switch (kind)
 	{
+	case TY_CHAR:
+		return "tChr";
+		break;
 	case TY_INT:
-		return "int";
+		return "tInt";
 		break;
 	case TY_PTR:
-		return "ptr";
+		return "tPtr";
 		break;
 	case TY_FUNC:
-		return "func";
+		return "tFnc";
 		break;
 	case TY_ARRAY:
-		return "arr";
+		return "tArr";
 		break;
 	default:
-		return "?";
 		break;
 	}
-	return "";
+	return "?";
 }
 // 打印二叉树:   type : 0表示根节点，１表示左节点，２表示右节点. level表示层次，用于控制显示的距离
 void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
@@ -256,7 +307,7 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 		}
 		break;
 	case ND_FUNCALL:
-		fprintf(fp, "F %s ", node->FuncName);
+		fprintf(fp, "nFnc %s ", node->FuncName);
 		if(node->Args != NULL)
 		{
 			fprintf(fp, "Args:\n");
@@ -275,7 +326,7 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 	nemoPrintTree(fp, node->LHS, 1,  level+1);
 }
 
-void nemoPrintAST(Obj *funcs)
+void nemoPrintAST(Obj *globalVars)
 {
 	int count = 0;
 	FILE *fp = getFp();
@@ -284,45 +335,73 @@ void nemoPrintAST(Obj *funcs)
 		printf("nemoPrintAST fp is null!\n");
 		return;
 	}
-	fprintf(fp, "====================================================\n");
-	fprintf(fp, "Note:\n");
-	fprintf(fp, "  Data type: ptr(pointor), arr(array), int(int) \n");
+	fprintf(fp, "===============================================================\n");
 	//fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
-	// 打印所有变量
-	for (Obj *func = funcs; func != NULL; func = func->Next)
+	// 打印全局变量Globals
+	fprintf(fp, "----------------------- Globals list --------------------------\n");
+	//fprintf(fp, "Globals list:\n");
+	for (Obj *gvar = globalVars; gvar != NULL; gvar = gvar->Next)
 	{
-		fprintf(fp, "-------------------------------------------------\n");
-		fprintf(fp, "Func %s:\n", func->Name);
-		// 打印栈大小
-		fprintf(fp, "  StackSize: %d\n", funcs->StackSize);
-		fprintf(fp, "  Variables:\n");
-		// for (Obj *param = func->Params; param; param = param->Next) {
-		// 	fprintf(fp, "  param Name: %s, type: %s, Offset: %d\n", param->Name, getTypeString(param->Ty->Kind), param->Offset);
-		// }
-		for (Obj *Var = func->Locals; Var; Var = Var->Next) {
-			fprintf(fp, "    Var Name: %s, type: %s, Offset: %d\n", Var->Name, getTypeString(Var->Ty->Kind), Var->Offset);
-			if(Var->Ty->Kind == TY_ARRAY)
+		if(gvar->IsFunction)
+		{
+			fprintf(fp, "func:%s\n", gvar->Name);
+		}
+		else
+		{
+			fprintf(fp, "glbVar:%s, type:%s\n", gvar->Name, getTypeString(gvar->Ty->Kind));
+			if (gvar->InitData)
 			{
-				fprintf(fp, "      array arrylen: %d, size: %d\n", Var->Ty->ArrayLen, Var->Ty->Size);
-				for (Type * base = Var->Ty->Base; base; base = base->Base, ++count)
+				fprintf(fp, "  InitData:%s\n", transSlashes(gvar->InitData));
+			}
+			if(gvar->Ty->Kind == TY_ARRAY) // 打印数组及其基础类型
+			{
+				fprintf(fp, "  array arrylen: %d, size: %d\n", gvar->Ty->ArrayLen, gvar->Ty->Size);
+				for (Type * base = gvar->Ty->Base; base; base = base->Base, ++count)
 				{
-					fprintf(fp, "      base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
+					fprintf(fp, "  base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
 				}
 			}
 		}
-
 	}
-	fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
-	fprintf(fp, "AST tree: \n");
-	fprintf(fp, "  Node type: F(function) \n");
-	// 循环遍历所有的函数
-	fprintf(fp, "-------------------------------------------------\n");
-	for (Obj *func = funcs; func != NULL; func = func->Next)
+	// 打印函数中的局部变量
+	fprintf(fp, "------------------------ Locals list --------------------------\n");
+	for (Obj *func = globalVars; func != NULL; func = func->Next)
 	{
-		fprintf(fp, "Func %s:\n", func->Name);
-		nemoPrintTree(fp, func->Body, 0,  1);
+		if(func->IsFunction)
+		{
+			fprintf(fp, "Func %s:\n", func->Name);
+			// 打印栈大小
+			fprintf(fp, "  StackSize: %d\n", func->StackSize);
+			fprintf(fp, "  Variables:\n");
+			// for (Obj *param = func->Params; param; param = param->Next) {
+			// 	fprintf(fp, "  param Name: %s, type: %s, Offset: %d\n", param->Name, getTypeString(param->Ty->Kind), param->Offset);
+			// }
+			for (Obj *Var = func->Locals; Var; Var = Var->Next) {
+				fprintf(fp, "    Name: %s, type: %s, Offset: %d\n", Var->Name, getTypeString(Var->Ty->Kind), Var->Offset);
+				if(Var->Ty->Kind == TY_ARRAY)
+				{
+					fprintf(fp, "      array arrylen: %d, size: %d\n", Var->Ty->ArrayLen, Var->Ty->Size);
+					for (Type * base = Var->Ty->Base; base; base = base->Base, ++count)
+					{
+						fprintf(fp, "      base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
+					}
+				}
+			}
+		}
+	}
+	// fprintf(fp, "+++++++++++++++++++++++++++++++++++++++++++++++++\n");
+	// fprintf(fp, "AST tree: \n");
+	// 循环遍历所有的函数
+	fprintf(fp, "------------------------- Func Tree ---------------------------\n");
+	for (Obj *func = globalVars; func != NULL; func = func->Next)
+	{
+		if(func->IsFunction)
+		{
+			fprintf(fp, "%s Body:\n", func->Name);
+			nemoPrintTree(fp, func->Body, 0,  1);
+		}
 	}
 
-	fprintf(fp, "====================================================\n\n");
+	fprintf(fp, "===============================================================\n\n");
 	fclose(fp);
 }
