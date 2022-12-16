@@ -281,6 +281,7 @@ static void convertKeywords(Token *Tok) {
   }
 }
 
+extern void nemoPrintStr(char *str);
 // 终结符解析，文件名，文件内容
 Token *tokenize(char *Filename, char *P) {
   CurrentFilename = Filename;
@@ -288,6 +289,7 @@ Token *tokenize(char *Filename, char *P) {
   Token Head = {};
   Token *Cur = &Head;
 
+  nemoPrintStr(P);
   while (*P) {
     // 跳过所有空白符如：空格、回车
     if (isspace(*P)) {

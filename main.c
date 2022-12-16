@@ -13,7 +13,6 @@ int main(int Argc, char **Argv) {
     error("%s: invalid number of arguments", Argv[0]);
   }
 
-  nemoPrintStr(Argv[1]);
   // 解析Argv[1]，生成终结符流
   Token *Tok = tokenizeFile(Argv[1]);
   nemoPrintToken(Tok);
