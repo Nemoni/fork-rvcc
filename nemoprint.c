@@ -7,7 +7,7 @@
 
 FILE * getFp()
 {
-	FILE *fp = fopen("./nemodump.log", "a");
+	FILE *fp = fopen("/home/pni/fork-rvcc/nemodump.log", "a");
 	if(NULL == fp)
 	{
 		printf("open nemodump.log fail errno = %d reason = %s \n", errno, strerror(errno));
@@ -53,7 +53,7 @@ void nemoPrintStr(char * str)
 		printf("nemoPrintToken fp is null!\n");
 		return;
 	}
-	fprintf(fp, "##################################################################\n");
+	fprintf(fp, "######################################################################################\n");
 	fprintf(fp, "Prefix:\n");
 	fprintf(fp, "  t:type kind; n:Node kind; \n");
 	fprintf(fp, "Input Code:\n  %s\n", str);
@@ -169,6 +169,9 @@ char *getTypeString(TypeKind kind)
 	case TY_ARRAY:
 		return "tArr";
 		break;
+	case TY_STRUCT:
+		return "tStc";
+		break;
 	default:
 		break;
 	}
@@ -178,6 +181,7 @@ char *getTypeString(TypeKind kind)
 void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 {
 	int i;
+	char *tokenName = NULL;
 
 	if (NULL == node)
 		return;
@@ -240,6 +244,18 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 		break;
 	case ND_ASSIGN:
 		fprintf(fp, "=\n");
+		break;
+	case ND_COMMA:
+		fprintf(fp, ",\n");
+		break;
+	case ND_MEMBER:
+		fprintf(fp, ".");
+		tokenName = node->Mem->Name->Loc;
+		do {
+			fprintf(fp, "%c", *tokenName);
+			++tokenName;
+		} while (isIdent2(*tokenName));
+		fprintf(fp, "\n");
 		break;
 	case ND_ADDR:
 		fprintf(fp, "&\n");
@@ -372,6 +388,14 @@ void nemoPrintAST(Obj *globalVars)
 				for (Type * base = gvar->Ty->Base; base; base = base->Base, ++count)
 				{
 					fprintf(fp, "  base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
+				}
+			}
+			if(gvar->Ty->Kind == TY_STRUCT) // 打印数组及其基础类型
+			{
+				fprintf(fp, "  struct Size: %d\n", gvar->Ty->Size);
+				for (Member * mem = gvar->Ty->Mems; mem; mem = mem->Next)
+				{
+					fprintf(fp, "  mem  Offset: %d, type: %s\n", mem->Offset, getTypeString(mem->Ty->Kind));
 				}
 			}
 		}
