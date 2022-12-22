@@ -5,6 +5,12 @@
 #include <stdbool.h>
 #include "rvcc.h"
 
+// 判断Str是否以SubStr开头
+static bool startsWith(char *Str, char *SubStr) {
+  // 比较LHS和RHS的N个字符是否相等
+  return strncmp(Str, SubStr, strlen(SubStr)) == 0;
+}
+
 FILE * getFp()
 {
 	FILE *fp = fopen("/home/pni/fork-rvcc/nemodump.log", "a");
@@ -15,6 +21,7 @@ FILE * getFp()
 	}
 	return fp;
 }
+// 注意free内存
 char *transSlashes(char *str)
 {
     /* allocate enough memory to escape all characters in str */
@@ -43,7 +50,14 @@ char *transSlashes(char *str)
 	strncpy(ptr, "\\0", 2);
 	return new_str;
 }
+// 注意free内存
+char *getTokLocName(char *loc, int len)
+{
+	char *retstr = calloc(1, len);
+	strncpy(retstr, loc, len);
 
+	return retstr;
+}
 //////////////////////////////////////////打印/////////////////////////////////////////////
 void nemoPrintStr(char * str)
 {
@@ -60,28 +74,12 @@ void nemoPrintStr(char * str)
 	fclose(fp);
 }
 //////////////////////////////////////////打印Token/////////////////////////////////////////////
-// 判断标记符的首字母规则
-// [a-zA-Z_]
-static bool isIdent1(char C) {
-  // a-z与A-Z在ASCII中不相连，所以需要分别判断
-  return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z') || C == '_';
-}
-
-// 判断标记符的非首字母的规则
-// [a-zA-Z0-9_]
-static bool isIdent2(char C) { return isIdent1(C) || ('0' <= C && C <= '9'); }
-
-// 判断Str是否以SubStr开头
-static bool startsWith(char *Str, char *SubStr) {
-  // 比较LHS和RHS的N个字符是否相等
-  return strncmp(Str, SubStr, strlen(SubStr)) == 0;
-}
-
 void nemoPrintToken(Token *Tok)
 {
 	char *P = NULL;
 	char *display = NULL;
 	FILE *fp = getFp();
+	int locLen = 0;
 	if(NULL == fp)
 	{
 		printf("nemoPrintToken fp is null!\n");
@@ -102,10 +100,12 @@ void nemoPrintToken(Token *Tok)
 		case TK_KEYWORD:
 		case TK_IDENT:
 			P = Tok->Loc;
+			locLen = 0;
 			do {
 				fprintf(fp, "%c", *P);
 				++P;
-			} while (isIdent2(*P));
+				++locLen;
+			} while (locLen < Tok->Len);
 			fprintf(fp, " ");
 			break;
 		case TK_PUNCT: // 打印运算符号
@@ -182,6 +182,7 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 {
 	int i;
 	char *tokenName = NULL;
+	int locLen = 0;
 
 	if (NULL == node)
 		return;
@@ -251,10 +252,12 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 	case ND_MEMBER:
 		fprintf(fp, ".");
 		tokenName = node->Mem->Name->Loc;
+		locLen = 0;
 		do {
 			fprintf(fp, "%c", *tokenName);
 			++tokenName;
-		} while (isIdent2(*tokenName));
+			++locLen;
+		} while (locLen < node->Mem->Name->Len);
 		fprintf(fp, "\n");
 		break;
 	case ND_ADDR:
@@ -390,12 +393,12 @@ void nemoPrintAST(Obj *globalVars)
 					fprintf(fp, "  base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
 				}
 			}
-			if(gvar->Ty->Kind == TY_STRUCT) // 打印数组及其基础类型
+			if(gvar->Ty->Kind == TY_STRUCT) // 打struct及其member
 			{
 				fprintf(fp, "  struct Size: %d\n", gvar->Ty->Size);
 				for (Member * mem = gvar->Ty->Mems; mem; mem = mem->Next)
 				{
-					fprintf(fp, "  mem  Offset: %d, type: %s\n", mem->Offset, getTypeString(mem->Ty->Kind));
+					fprintf(fp, "  mem name:%s, Offset: %d, type: %s\n", getTokLocName(mem->Name->Loc, mem->Name->Len), mem->Offset, getTypeString(mem->Ty->Kind));
 				}
 			}
 		}
@@ -421,6 +424,14 @@ void nemoPrintAST(Obj *globalVars)
 					for (Type * base = Var->Ty->Base; base; base = base->Base, ++count)
 					{
 						fprintf(fp, "      base%d arrylen: %d, size: %d, type: %s\n", count,base->ArrayLen, base->Size, getTypeString(base->Kind));
+					}
+				}
+				if(Var->Ty->Kind == TY_STRUCT) // 打struct及其member
+				{
+					fprintf(fp, "      struct Size: %d\n", Var->Ty->Size);
+					for (Member * mem = Var->Ty->Mems; mem; mem = mem->Next)
+					{
+						fprintf(fp, "      mem name:%s, Offset: %d, type: %s\n", getTokLocName(mem->Name->Loc, mem->Name->Len), mem->Offset, getTypeString(mem->Ty->Kind));
 					}
 				}
 			}
