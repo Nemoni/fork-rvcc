@@ -136,7 +136,7 @@ void nemoPrintToken(Token *Tok)
 			free(display);
 			break;
 		case TK_NUM: // 打印运算整数
-			fprintf(fp, "%d ", Tok->Val);
+			fprintf(fp, "%ld ", Tok->Val);
 			break;
 		default:
 			break;
@@ -157,8 +157,14 @@ char *getTypeString(TypeKind kind)
 	case TY_CHAR:
 		return "tChr";
 		break;
+	case TY_SHORT:
+		return "tSht";
+		break;
 	case TY_INT:
 		return "tInt";
+		break;
+	case TY_LONG:
+		return "tLng";
 		break;
 	case TY_PTR:
 		return "tPtr";
@@ -171,6 +177,9 @@ char *getTypeString(TypeKind kind)
 		break;
 	case TY_STRUCT:
 		return "tStc";
+		break;
+	case TY_UNION:
+		return "tUni";
 		break;
 	default:
 		break;
@@ -241,7 +250,7 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 		fprintf(fp, "<=\n");
 		break;
 	case ND_NUM:
-		fprintf(fp, "%-10d\n", node->Val);
+		fprintf(fp, "%-10ld\n", node->Val);
 		break;
 	case ND_ASSIGN:
 		fprintf(fp, "=\n");
@@ -250,21 +259,19 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 		fprintf(fp, ",\n");
 		break;
 	case ND_MEMBER:
-		fprintf(fp, ".");
-		tokenName = node->Mem->Name->Loc;
-		locLen = 0;
-		do {
-			fprintf(fp, "%c", *tokenName);
-			++tokenName;
-			++locLen;
-		} while (locLen < node->Mem->Name->Len);
-		fprintf(fp, "\n");
+		tokenName = getTokLocName(node->Mem->Name->Loc, node->Mem->Name->Len);
+		fprintf(fp, ".%s\n", tokenName);
+		free(tokenName);
+		tokenName = NULL;
 		break;
 	case ND_ADDR:
 		fprintf(fp, "&\n");
 		break;
 	case ND_DEREF:
-		fprintf(fp, "*\n");
+		tokenName = getTokLocName(node->Tok->Loc, node->Tok->Len);
+		fprintf(fp, "%s\n", tokenName);
+		free(tokenName);
+		tokenName = NULL;
 		break;
 	case ND_RETURN:
 		fprintf(fp, "return\n");
@@ -362,6 +369,7 @@ void nemoPrintAST(Obj *globalVars)
 {
 	int count = 0;
 	FILE *fp = getFp();
+	char *tokenName = NULL;
 	if(NULL == fp)
 	{
 		printf("nemoPrintAST fp is null!\n");
@@ -398,7 +406,10 @@ void nemoPrintAST(Obj *globalVars)
 				fprintf(fp, "  struct Size: %d\n", gvar->Ty->Size);
 				for (Member * mem = gvar->Ty->Mems; mem; mem = mem->Next)
 				{
-					fprintf(fp, "  mem name:%s, Offset: %d, type: %s\n", getTokLocName(mem->Name->Loc, mem->Name->Len), mem->Offset, getTypeString(mem->Ty->Kind));
+					tokenName = getTokLocName(mem->Name->Loc, mem->Name->Len);
+					fprintf(fp, "  mem name:%s, Offset: %d, type: %s\n", tokenName, mem->Offset, getTypeString(mem->Ty->Kind));
+					free(tokenName);
+					tokenName = NULL;
 				}
 			}
 		}
@@ -431,7 +442,10 @@ void nemoPrintAST(Obj *globalVars)
 					fprintf(fp, "      struct Size: %d\n", Var->Ty->Size);
 					for (Member * mem = Var->Ty->Mems; mem; mem = mem->Next)
 					{
-						fprintf(fp, "      mem name:%s, Offset: %d, type: %s\n", getTokLocName(mem->Name->Loc, mem->Name->Len), mem->Offset, getTypeString(mem->Ty->Kind));
+						tokenName = getTokLocName(mem->Name->Loc, mem->Name->Len);;
+						fprintf(fp, "      mem name:%s, Offset: %d, type: %s\n", tokenName, mem->Offset, getTypeString(mem->Ty->Kind));
+						free(tokenName);
+						tokenName = NULL;
 					}
 				}
 			}
