@@ -361,6 +361,9 @@ void nemoPrintTree(FILE *fp, Node *node, int type,  int level)
 			fprintf(fp, "\n");
 		}
 		break;
+	case ND_CAST:
+		fprintf(fp, "Cast\n");
+		break;
 	default:
 		fprintf(fp, "?\n");
 		break;
